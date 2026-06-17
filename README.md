@@ -77,7 +77,4 @@ CityGML (LoD2)  →  3DCityDB v5 (PostgreSQL + PostGIS)  →  Node.js/Express MV
 
 
 
-## 🙏 Acknowledgements
 
-- 3D building data sourced from the **Estonian Land Board (Maa-amet)**.
-- Built on the open-source [3DCityDB](https://www.3dcitydb.org/) project.
