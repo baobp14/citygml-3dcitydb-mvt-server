@@ -1,4 +1,5 @@
 Project Description
+
 📌 Overview
 This project implements a high-performance Dynamic Vector Tiles (MVT) Server specialized in streaming and rendering large-scale 3D Building Models (LoD2 - Level of Detail 2) on a Web GIS platform. The system ingests nationwide 3D spatial data based on the open CityGML standard (sourced from the Estonian Land Board / Maa-amet) and dynamically processes it for real-time browser visualization without overloading client-side memory.
 
