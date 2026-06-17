@@ -7,7 +7,6 @@
 [![3DCityDB](https://img.shields.io/badge/3DCityDB-v5-orange)](https://www.3dcitydb.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![MapLibre](https://img.shields.io/badge/MapLibre%20GL%20JS-3D%20Rendering-396CB0?logo=mapbox&logoColor=white)](https://maplibre.org/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](#-license)
 
 ---
 
