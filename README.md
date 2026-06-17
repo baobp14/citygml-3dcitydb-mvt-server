@@ -1,25 +1,86 @@
-Project Description
+# 🏙️ Dynamic 3D Vector Tiles (MVT) Server
 
-📌 Overview
-This project implements a high-performance Dynamic Vector Tiles (MVT) Server specialized in streaming and rendering large-scale 3D Building Models (LoD2 - Level of Detail 2) on a Web GIS platform. The system ingests nationwide 3D spatial data based on the open CityGML standard (sourced from the Estonian Land Board / Maa-amet) and dynamically processes it for real-time browser visualization without overloading client-side memory.
+> High-performance vector tile server for streaming and rendering large-scale 3D LoD2 building models on a Web GIS platform, powered by 3DCityDB v5 and PostGIS.
 
-🎯 Requirements & Core Challenges Addressed
-Massive Data Streaming: Dynamically slicing and serving a dataset of over 856,000 spatial features into binary Vector Tiles (z/x/y), eliminating the performance bottleneck of loading massive static GeoJSON files.
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![PostGIS](https://img.shields.io/badge/PostGIS-Enabled-4CAF50?logo=postgresql&logoColor=white)](https://postgis.net/)
+[![3DCityDB](https://img.shields.io/badge/3DCityDB-v5-orange)](https://www.3dcitydb.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![MapLibre](https://img.shields.io/badge/MapLibre%20GL%20JS-3D%20Rendering-396CB0?logo=mapbox&logoColor=white)](https://maplibre.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](#-license)
 
-Coordinate Reference System (CRS) & Axis Flip Fix: Resolving spatial displacement and axis-order discrepancies (X/Y flip) typical of European GML structures when transforming data from local coordinate systems to Web Mercator (EPSG:3857).
+---
 
-Database Concurrency Optimization: Mitigating heavy table scans and server timeouts during high-frequency parallel requests from frontend camera movements by ncurring strict spatial indexing rules and expanding connection limits.
+## 📌 Overview
 
-🏗️ Data Model & Database Architecture
-Source Data: CityGML (LoD2) dataset including detailed building structures with roof shapes (roof geometry) captured via airborne laser scanning (LiDAR) and photogrammetry.
+This project implements a **high-performance Dynamic Vector Tiles (MVT) Server** specialized in streaming and rendering large-scale **3D Building Models (LoD2 – Level of Detail 2)** on a Web GIS platform.
 
-Database Schema: Implemented using 3DCityDB v5 (3D City Database v5) on top of PostgreSQL/PostGIS.
+The system ingests nationwide 3D spatial data based on the open **CityGML** standard (sourced from the **Estonian Land Board / Maa-amet**) and dynamically processes it for real-time browser visualization — without overloading client-side memory.
 
-Spatial Indexing: Built custom GIST (Generalized Search Tree) spatial indexes on the geometry_data table's geometry columns to ensure PostGIS utilizes index-driven bounding box operators (&&) for instant geographical queries.
+Instead of shipping massive static GeoJSON payloads to the browser, the server slices the dataset on demand into compact binary tiles indexed by `z/x/y`, allowing the frontend to render hundreds of thousands of 3D buildings smoothly as the camera moves.
 
-🛠️ Tech Stack Included
-Database: PostgreSQL 17 + PostGIS Extension + 3DCityDB v5 Schema
+---
 
-Backend: Node.js, Express, pg (Native Postgres Driver)
+## 🎯 Requirements & Core Challenges Addressed
 
-Frontend: MapLibre GL JS (using fill-extrusion layers for 3D roof height presentation)
+### 1. Massive Data Streaming
+Dynamically slicing and serving a dataset of **over 856,000 spatial features** into binary Vector Tiles (`z/x/y`), eliminating the performance bottleneck of loading massive static GeoJSON files into the client.
+
+### 2. Coordinate Reference System (CRS) & Axis-Flip Fix
+Resolving spatial displacement and axis-order discrepancies (X/Y flip) typical of European GML structures when transforming data from local coordinate systems into **Web Mercator (EPSG:3857)**.
+
+### 3. Database Concurrency Optimization
+Mitigating heavy table scans and server timeouts during high-frequency parallel requests triggered by frontend camera movement, by enforcing strict spatial indexing rules and expanding database connection limits.
+
+---
+
+## 🏗️ Data Model & Database Architecture
+
+| Component | Description |
+|---|---|
+| **Source Data** | CityGML (LoD2) dataset, including detailed building structures with roof geometry captured via airborne laser scanning (LiDAR) and photogrammetry |
+| **Database Schema** | [3DCityDB v5](https://www.3dcitydb.org/) running on top of PostgreSQL/PostGIS |
+| **Spatial Indexing** | Custom **GiST** (Generalized Search Tree) indexes on the `geometry_data` table's geometry columns, ensuring PostGIS leverages index-driven bounding-box operators (`&&`) for instant geographical queries |
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Database** | PostgreSQL 17 + PostGIS Extension + 3DCityDB v5 Schema |
+| **Backend** | Node.js, Express, `pg` (native PostgreSQL driver) |
+| **Frontend** | MapLibre GL JS — `fill-extrusion` layers for 3D roof/height rendering |
+
+---
+
+## 🧩 Architecture at a Glance
+
+```
+CityGML (LoD2)  →  3DCityDB v5 (PostgreSQL + PostGIS)  →  Node.js/Express MVT Server  →  MapLibre GL JS
+   [Maa-amet]         [GiST spatial index, EPSG fix]       [z/x/y tile slicing]         [fill-extrusion]
+```
+
+1. **Ingestion** — CityGML LoD2 data from Maa-amet is imported into a 3DCityDB v5 schema.
+2. **Indexing & CRS correction** — Geometry columns are reprojected/axis-corrected and indexed with GiST for fast bounding-box lookups.
+3. **Tiling** — The Express server receives `z/x/y` tile requests, queries only the features intersecting that tile's bounding box, and encodes the result as a binary MVT buffer.
+4. **Rendering** — MapLibre GL JS requests tiles as the user pans/zooms and renders building footprints as extruded 3D geometry.
+
+---
+
+## ⚙️ Key Engineering Notes
+
+- **Index-driven queries**: All tile queries rely on the PostGIS `&&` operator against GiST indexes rather than full table scans, keeping response times low even at 856K+ features.
+- **Axis-order handling**: European CityGML/GML sources commonly express coordinates in (lat, lon) or local CRS axis order; explicit axis-flip handling avoids buildings rendering in the wrong location after transformation to EPSG:3857.
+- **Connection pooling**: Database connection limits are tuned to absorb bursts of parallel tile requests generated by continuous camera movement on the frontend.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](#).
+
+## 🙏 Acknowledgements
+
+- 3D building data sourced from the **Estonian Land Board (Maa-amet)**.
+- Built on the open-source [3DCityDB](https://www.3dcitydb.org/) project.
