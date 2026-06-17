@@ -37,7 +37,7 @@ Mitigating heavy table scans and server timeouts during high-frequency parallel 
 
 | Component | Description |
 |---|---|
-| **Source Data** | CityGML (LoD2)[https://geoportaal.maaamet.ee/eng/Download-3D-data-p837.html#lod2-pane] dataset, including detailed building structures with roof geometry captured via airborne laser scanning (LiDAR) and photogrammetry |
+| **Source Data** | CityGML [LoD2](https://geoportaal.maaamet.ee/eng/Download-3D-data-p837.html#lod2-pane) dataset.
 | **Database Schema** | [3DCityDB v5](https://www.3dcitydb.org/) running on top of PostgreSQL/PostGIS |
 | **Spatial Indexing** | Custom **GiST** (Generalized Search Tree) indexes on the `geometry_data` table's geometry columns, ensuring PostGIS leverages index-driven bounding-box operators (`&&`) for instant geographical queries |
 
