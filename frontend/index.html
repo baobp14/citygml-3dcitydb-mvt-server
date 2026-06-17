@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3DCityDB Building Viewer</title>
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<link href="https://unpkg.com/@mapbox/mapbox-gl-draw@1.4.3/dist/mapbox-gl-draw.css" rel="stylesheet">
+<script src="https://unpkg.com/@mapbox/mapbox-gl-draw@1.4.3/dist/mapbox-gl-draw.js"></script>
+<style>
+  :root {
+    --bg: #14171c; --panel: #1c2128; --panel-border: #2a2f38;
+    --text: #e6e8eb; --text-dim: #8b919b; --accent: #4fd1c5;
+    --danger: #e53e3e; --success: #48bb78; --warn: #f6ad55;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
+
+  .panel {
+    position: absolute; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); padding: 14px 16px; z-index: 5;
+  }
+  #title-panel { top: 16px; left: 16px; max-width: 260px; }
+  #title-panel h1 { font-size: 15px; margin: 0 0 4px; }
+  #title-panel p { font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.45; }
+
+  #legend { bottom: 28px; left: 16px; font-size: 12px; color: var(--text-dim); }
+  #legend .bar { width: 160px; height: 8px; border-radius: 4px; margin: 6px 0 4px; background: linear-gradient(to right, #4299e1, #48bb78, #f6ad55, #e53e3e); }
+  #legend .scale { display: flex; justify-content: space-between; }
+
+
+  #toolbar { top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 10px 14px; }
+  .tool-btn {
+    padding: 7px 14px; border-radius: 7px; border: 1px solid var(--panel-border);
+    background: var(--panel); color: var(--text); cursor: pointer; font-size: 13px;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tool-btn.active { background: var(--accent); color: #14171c; border-color: var(--accent); font-weight: 600; }
+  .tool-btn.danger { border-color: var(--danger); color: var(--danger); }
+  .tool-btn.danger:hover { background: var(--danger); color: #fff; }
+
+
+  #detail-panel { top: 16px; right: 16px; width: 300px; transform: translateX(340px); transition: transform 0.2s ease; max-height: calc(100vh - 32px); overflow-y: auto; }
+  #detail-panel.open { transform: translateX(0); }
+  #detail-panel h2 { font-size: 14px; margin: 0 0 10px; color: var(--accent); }
+  .close-btn { position: absolute; top: 10px; right: 12px; cursor: pointer; color: var(--text-dim); font-size: 13px; background: none; border: none; color: var(--text-dim); }
+
+  .prop-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid var(--panel-border); }
+  .prop-row span:first-child { color: var(--text-dim); flex-shrink: 0; }
+  .prop-val { text-align: right; word-break: break-all; }
+  .prop-input { background: #0d1117; border: 1px solid var(--panel-border); color: var(--text); border-radius: 4px; padding: 2px 6px; font-size: 12px; width: 130px; }
+  .prop-input:focus { outline: none; border-color: var(--accent); }
+
+  .action-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .btn { padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 12.5px; font-weight: 500; transition: opacity 0.15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--accent); color: #14171c; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-secondary { background: var(--panel-border); color: var(--text); }
+  .btn-warn { background: var(--warn); color: #14171c; }
+
+  .empty { color: var(--text-dim); font-size: 12.5px; }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin: 12px 0 6px; }
+
+  .add-prop { display: flex; gap: 6px; margin-top: 8px; }
+  .add-prop input { flex: 1; background: #0d1117; border: 1px solid var(--panel-border); color: var(--text); border-radius: 4px; padding: 4px 8px; font-size: 12px; }
+  .add-prop input:focus { outline: none; border-color: var(--accent); }
+
+  #draw-panel { bottom: 28px; right: 16px; font-size: 13px; display: none; }
+  #draw-panel.visible { display: block; }
+  #draw-panel p { margin: 0 0 10px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+
+  #new-building-panel { top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; display: none; z-index: 20; }
+  #new-building-panel.visible { display: block; }
+  #new-building-panel h2 { font-size: 14px; margin: 0 0 12px; color: var(--accent); }
+  .form-row { margin-bottom: 10px; }
+  .form-row label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .form-row input { width: 100%; background: #0d1117; border: 1px solid var(--panel-border); color: var(--text); border-radius: 4px; padding: 6px 8px; font-size: 13px; }
+  .form-row input:focus { outline: none; border-color: var(--accent); }
+
+  #toast { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1c2128; border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px 18px; font-size: 13px; z-index: 30; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #toast.success { border-color: var(--success); color: var(--success); }
+  #toast.error { border-color: var(--danger); color: var(--danger); }
+
+  #status { position: absolute; bottom: 28px; right: 16px; font-size: 11.5px; color: var(--text-dim); z-index: 5; }
+
+  #confirm-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); z-index: 25; display: none; align-items: center; justify-content: center; }
+  #confirm-overlay.visible { display: flex; }
+  #confirm-box { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; padding: 24px; width: 300px; text-align: center; }
+  #confirm-box p { margin: 0 0 20px; font-size: 14px; }
+  #confirm-box .btn-row { display: flex; gap: 10px; justify-content: center; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="title-panel" class="panel">
+  <h1>3DCityDB Building Viewer</h1>
+  <p>Zoom ≥ 13 để thấy building. Click building để xem/sửa/xoá.</p>
+</div>
+
+<div id="toolbar" class="panel">
+  <button class="tool-btn active" id="btn-view" onclick="setMode('view')">👁 Xem</button>
+  <button class="tool-btn" id="btn-draw" onclick="setMode('draw')">✏️ Vẽ mới</button>
+  <button class="tool-btn" id="btn-edit-geom" onclick="setMode('edit-geom')" style="display:none">📐 Sửa hình</button>
+</div>
+
+<div id="legend" class="panel">
+  Chiều cao
+  <div class="bar"></div>
+  <div class="scale"><span>thấp</span><span>cao</span></div>
+</div>
+
+<div id="detail-panel" class="panel">
+  <button class="close-btn" onclick="closeDetail()">✕</button>
+  <h2>Building <span id="detail-id" style="font-size:11px;color:var(--text-dim)"></span></h2>
+  <div id="detail-body"><div class="empty">Click vào building để xem thông tin.</div></div>
+</div>
+
+<div id="draw-panel" class="panel">
+  <div class="section-title">🖊 Vẽ building mới</div>
+  <p>Nhấp từng điểm để vẽ polygon.<br>Nhấp đôi để kết thúc.</p>
+  <button class="btn btn-secondary" onclick="setMode('view')">Huỷ</button>
+</div>
+
+<div id="new-building-panel" class="panel">
+  <button class="close-btn" onclick="cancelNewBuilding()">✕</button>
+  <h2>Thêm Building Mới</h2>
+  <div class="form-row"><label>GML ID (tuỳ chọn)</label><input id="new-gml-id" placeholder="building-001"></div>
+  <div class="form-row"><label>Chiều cao (m)</label><input id="new-height" type="number" placeholder="10"></div>
+  <div class="form-row"><label>Trạng thái</label><input id="new-status" placeholder="existing"></div>
+  <div class="form-row"><label>Loại (tyyp)</label><input id="new-tyyp" placeholder="building"></div>
+  <div class="action-row">
+    <button class="btn btn-primary" onclick="saveNewBuilding()">💾 Lưu</button>
+    <button class="btn btn-secondary" onclick="cancelNewBuilding()">Huỷ</button>
+  </div>
+</div>
+
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <p id="confirm-msg">Bạn có chắc muốn xoá building này?</p>
+    <div class="btn-row">
+      <button class="btn btn-danger" id="confirm-yes">Xoá</button>
+      <button class="btn btn-secondary" onclick="closeConfirm()">Huỷ</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="status">đang tải...</div>
+
+<script>
+const API_BASE   = 'http://localhost:3000';
+const MAP_CENTER = [58.65, 24.75];
+const MAP_ZOOM   = 15;
+
+let currentMode = 'view';
+let currentFeatureId = null;
+let editingProps = {};
+let drawnGeojson = null;
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    sources: {
+      carto: { type: 'raster', tiles: ['https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '&copy; CartoDB' }
+    },
+    layers: [{ id: 'carto', type: 'raster', source: 'carto' }]
+  },
+  center: [MAP_CENTER[1], MAP_CENTER[0]],
+  zoom: MAP_ZOOM, pitch: 55, maxPitch: 75
+});
+
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+const Draw = new MapboxDraw({
+  displayControlsDefault: false,
+  controls: { polygon: true, trash: true }
+});
+map.addControl(Draw, 'top-right');
+
+map.on('draw.create', (e) => {
+  drawnGeojson = e.features[0].geometry;
+  Draw.deleteAll();
+  document.getElementById('new-building-panel').classList.add('visible');
+  document.getElementById('draw-panel').classList.remove('visible');
+});
+
+map.on('load', () => {
+  map.addSource('buildings', {
+    type: 'vector',
+    tiles: [`${API_BASE}/api/tiles/{z}/{x}/{y}.mvt`],
+    minzoom: 13, maxzoom: 18
+  });
+
+  map.addLayer({
+    id: 'buildings-extrusion',
+    type: 'fill-extrusion',
+    source: 'buildings',
+    'source-layer': 'buildings',
+    paint: {
+      'fill-extrusion-height': ['*', ['coalesce', ['to-number', ['get', 'height']], 10], 3],
+      'fill-extrusion-base': 0,
+      'fill-extrusion-opacity': 0.88,
+      'fill-extrusion-color': [
+        'interpolate', ['linear'], ['coalesce', ['to-number', ['get', 'height']], 10],
+        0, '#4299e1', 5, '#48bb78', 10, '#f6ad55', 20, '#e53e3e'
+      ]
+    }
+  });
+
+  map.on('click', 'buildings-extrusion', async (e) => {
+    if (currentMode !== 'view') return;
+    const feature = e.features[0];
+    currentFeatureId = feature.properties.feature_id;
+    document.getElementById('btn-edit-geom').style.display = 'inline-block';
+    await loadBuildingDetail(currentFeatureId);
+  });
+
+  map.on('mouseenter', 'buildings-extrusion', () => { if (currentMode === 'view') map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'buildings-extrusion', () => map.getCanvas().style.cursor = '');
+});
+
+map.on('idle', () => { document.getElementById('status').textContent = ''; });
+map.on('dataloading', () => { document.getElementById('status').textContent = 'đang tải...'; });
+
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+
+  if (mode === 'view') {
+    document.getElementById('btn-view').classList.add('active');
+    document.getElementById('draw-panel').classList.remove('visible');
+    Draw.changeMode('simple_select');
+    map.getCanvas().style.cursor = '';
+  } else if (mode === 'draw') {
+    document.getElementById('btn-draw').classList.add('active');
+    document.getElementById('draw-panel').classList.add('visible');
+    closeDetail();
+    Draw.changeMode('draw_polygon');
+    map.getCanvas().style.cursor = 'crosshair';
+  } else if (mode === 'edit-geom') {
+    document.getElementById('btn-edit-geom').classList.add('active');
+    document.getElementById('draw-panel').classList.remove('visible');
+    Draw.changeMode('draw_polygon');
+    map.getCanvas().style.cursor = 'crosshair';
+    showToast('Vẽ lại polygon cho building này, nhấp đôi để kết thúc', 'info');
+
+    map.once('draw.create', async (e) => {
+      const newGeom = e.features[0].geometry;
+      Draw.deleteAll();
+      await updateGeometry(currentFeatureId, newGeom);
+      setMode('view');
+    });
+  }
+}
+
+async function loadBuildingDetail(featureId) {
+  const panel = document.getElementById('detail-panel');
+  const body = document.getElementById('detail-body');
+  document.getElementById('detail-id').textContent = `#${featureId}`;
+  panel.classList.add('open');
+  body.innerHTML = '<div class="empty">Đang tải...</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/buildings/${featureId}`);
+    if (!res.ok) throw new Error('Không lấy được dữ liệu');
+    const data = await res.json();
+    editingProps = { ...data.properties };
+    renderDetailPanel(data);
+  } catch (err) {
+    body.innerHTML = `<div class="empty">Lỗi: ${err.message}</div>`;
+  }
+}
+
+function renderDetailPanel(data, editMode = false) {
+  const body = document.getElementById('detail-body');
+  let html = '';
+
+  html += `<div class="section-title">Thông tin</div>`;
+  html += `<div class="prop-row"><span>gml:id</span><span class="prop-val">${data.gml_id ?? '—'}</span></div>`;
+
+  html += `<div class="section-title">Thuộc tính</div>`;
+  const entries = Object.entries(editingProps);
+
+  if (entries.length === 0 && !editMode) {
+    html += '<div class="empty">Không có thuộc tính</div>';
+  } else {
+    for (const [key, value] of entries) {
+      if (editMode) {
+        html += `<div class="prop-row">
+          <span>${key}</span>
+          <input class="prop-input" data-key="${key}" value="${value ?? ''}">
+        </div>`;
+      } else {
+        html += `<div class="prop-row"><span>${key}</span><span class="prop-val">${value ?? '—'}</span></div>`;
+      }
+    }
+  }
+
+  if (editMode) {
+    html += `<div class="add-prop">
+      <input id="new-prop-key" placeholder="Tên thuộc tính">
+      <input id="new-prop-val" placeholder="Giá trị">
+      <button class="btn btn-secondary" style="padding:4px 8px;font-size:11px" onclick="addPropRow()">+</button>
+    </div>`;
+  }
+
+  html += `<div class="action-row">`;
+  if (!editMode) {
+    html += `<button class="btn btn-primary" onclick="startEditProps(${data.id})">✏️ Sửa</button>`;
+    html += `<button class="btn btn-danger" onclick="confirmDelete(${data.id})">🗑 Xoá</button>`;
+  } else {
+    html += `<button class="btn btn-primary" onclick="saveProps(${data.id})">💾 Lưu</button>`;
+    html += `<button class="btn btn-secondary" onclick="loadBuildingDetail(${data.id})">Huỷ</button>`;
+  }
+  html += `</div>`;
+
+  body.innerHTML = html;
+}
+
+function startEditProps(featureId) {
+  const body = document.getElementById('detail-body');
+  body.querySelectorAll('.prop-input').forEach(inp => {
+    editingProps[inp.dataset.key] = inp.value;
+  });
+  renderDetailPanel({ id: featureId, gml_id: document.getElementById('detail-id').textContent.replace('#','') }, true);
+}
+
+function addPropRow() {
+  const key = document.getElementById('new-prop-key').value.trim();
+  const val = document.getElementById('new-prop-val').value.trim();
+  if (!key) return;
+  editingProps[key] = val;
+  renderDetailPanel({ id: currentFeatureId, gml_id: '' }, true);
+}
+
+async function saveProps(featureId) {
+  document.querySelectorAll('.prop-input').forEach(inp => {
+    editingProps[inp.dataset.key] = inp.value;
+  });
+
+  try {
+    const res = await fetch(`${API_BASE}/api/buildings/${featureId}/properties`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ properties: editingProps })
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    showToast('Đã lưu thuộc tính!', 'success');
+    await loadBuildingDetail(featureId);
+    refreshTiles();
+  } catch (err) {
+    showToast('Lỗi: ' + err.message, 'error');
+  }
+}
+
+async function updateGeometry(featureId, geojson) {
+  try {
+    const res = await fetch(`${API_BASE}/api/buildings/${featureId}/geometry`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ geojson })
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    showToast('Đã cập nhật hình dạng!', 'success');
+    await loadBuildingDetail(featureId);
+    refreshTiles();
+  } catch (err) {
+    showToast('Lỗi: ' + err.message, 'error');
+  }
+}
+
+function confirmDelete(featureId) {
+  document.getElementById('confirm-overlay').classList.add('visible');
+  document.getElementById('confirm-yes').onclick = () => deleteBuilding(featureId);
+}
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('visible');
+}
+async function deleteBuilding(featureId) {
+  closeConfirm();
+  try {
+    const res = await fetch(`${API_BASE}/api/buildings/${featureId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error((await res.json()).error);
+    showToast('Đã xoá building!', 'success');
+    closeDetail();
+    refreshTiles();
+  } catch (err) {
+    showToast('Lỗi: ' + err.message, 'error');
+  }
+}
+
+function cancelNewBuilding() {
+  document.getElementById('new-building-panel').classList.remove('visible');
+  drawnGeojson = null;
+  setMode('view');
+}
+
+async function saveNewBuilding() {
+  if (!drawnGeojson) return showToast('Chưa có geometry', 'error');
+  const height = document.getElementById('new-height').value;
+  const status = document.getElementById('new-status').value;
+  const tyyp = document.getElementById('new-tyyp').value;
+  const gml_id = document.getElementById('new-gml-id').value;
+
+  const properties = {};
+  if (height) properties['height'] = parseFloat(height);
+  if (status) properties['status'] = status;
+  if (tyyp) properties['tyyp'] = tyyp;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/buildings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ geojson: drawnGeojson, properties, gml_id })
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    const data = await res.json();
+    showToast(`Đã tạo building #${data.id}!`, 'success');
+    document.getElementById('new-building-panel').classList.remove('visible');
+    drawnGeojson = null;
+    refreshTiles();
+    setMode('view');
+  } catch (err) {
+    showToast('Lỗi: ' + err.message, 'error');
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('btn-edit-geom').style.display = 'none';
+  currentFeatureId = null;
+}
+
+function refreshTiles() {
+  const src = map.getSource('buildings');
+  if (src) { const t = src.tiles; src.setTiles([]); setTimeout(() => src.setTiles(t), 100); }
+}
+
+let toastTimer;
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+document.getElementById('close-detail')?.remove();
+</script>
+</body>
+</html>
